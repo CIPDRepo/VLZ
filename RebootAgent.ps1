@@ -8,5 +8,5 @@ $msi = 'fs-windows-agent-2.9.0.msi'
 $outputPath = $LocalPath + '\' + $msi
 Invoke-WebRequest -Uri $URL -OutFile $outputPath
 write-host 'Starting Install fs-windows-agent-2.9.0'
-Start-Process -FilePath msiexec.exe -Args "/package $outputPath" -Wait
+Start-Process -FilePath msiexec.exe -Args "/package $outputPath /qn" -Wait
 write-host 'Finished Install the of fs-windows-agent-2.9.0'
