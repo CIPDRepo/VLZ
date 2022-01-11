@@ -3,7 +3,7 @@ $appName = 'fs-windows-agent-2.9.0'
 New-Item -Path $drive -Name $appName -ItemType Directory -ErrorAction SilentlyContinue
 $LocalPath = $drive + '\' + $appName
 Set-Location -Path $LocalPath
-$URL = 'https://github.com/CIPDRepo/VLZ/blob/main/fs-windows-agent-2.9.0.msi'
+$URL = 'https://raw.githubusercontent.com/CIPDRepo/VLZ/main/fs-windows-agent-2.9.0.msi'
 $msi = 'fs-windows-agent-2.9.0.msi'
 $outputPath = $LocalPath + '\' + $msi
 Invoke-WebRequest -Uri $URL -OutFile $outputPath
