@@ -8,10 +8,10 @@
   	<!-- Begin Site List --> 
 	<site url="uacbapp01.cipdstaging.com/LTM_UAT">
 		 <compat-mode>IE7</compat-mode>
-		 <open-in>MSEdge</open-in>
+		 <open-in allow-redirect="true">MSEdge</open-in>
 	</site>
     	<site url="pacbapp01.cipdhouse.co.uk/LTM">
 		 <compat-mode>IE7</compat-mode>
-		 <open-in>MSEdge</open-in>
+		 <open-in allow-redirect="true">MSEdge</open-in>
 	</site>
 </site-list>
