@@ -1,0 +1,17 @@
+<site-list version="205">
+	<!-- File creation header -->
+	<created-by>
+		<tool>EnterpriseSitelistManager</tool>
+		<version>10240</version>
+		<date-created>20150728.135021</date-created>
+	</created-by>
+  	<!-- Begin Site List --> 
+	<site url="uacbapp01.cipdstaging.com/LTM_UAT">
+		 <compat-mode>IE7</compat-mode>
+		 <open-in>IE11</open-in>
+	</site>
+    	<site url="pacbapp01.cipdhouse.co.uk/LTM">
+		 <compat-mode>IE7</compat-mode>
+		 <open-in>IE11</open-in>
+	</site>
+</site-list>
