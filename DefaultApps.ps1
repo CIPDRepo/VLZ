@@ -26,5 +26,5 @@ $URLexe = 'DattoAgent.exe'
 $outputPath = $LocalPath + '\' + $URLexe
 Invoke-WebRequest -Uri $URL -OutFile $outputPath
 write-host 'Starting the install of Datto Agent'
-Start-Process -FilePath $outputPath -Args "/install /VERYSILENT " -Wait
+Start-Process -FilePath $outputPath -Args "/install /VERYSILENT"
 write-host 'Finished the install of Datto Agent'
