@@ -189,5 +189,4 @@ goto Finished
 echo.
 echo - Total uninstallation routine completed.
 echo.
-pause
 exit
