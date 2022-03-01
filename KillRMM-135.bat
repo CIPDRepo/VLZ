@@ -59,7 +59,7 @@ echo You have received this script from a Datto support delegate.
 echo This script is not for general usage and should not be shared.
 echo Please only use this script if you have been instructed to.
 set varContinuePrompt1=y
-set /p varContinuePrompt1=   - - - Press ENTER to agree or N to abort - - - :   
+REM REM set /p varContinuePrompt1=   - - - Press ENTER to agree or N to abort - - - :   
 if /i %varContinuePrompt1%==N (
 	echo.
 	echo - KillRMM procedure aborted. Exiting...
@@ -81,7 +81,7 @@ echo %varAgentLocation% | findstr "~" >nul 2>&1
 if %errorlevel% equ 0 (echo Agent installation could not be found: Removing remnant folders.) else (echo Agent installation found at "%varAgentLocation%".)
 echo = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 set varContinuePrompt2=y
-set /p varContinuePrompt2=Press ENTER to commence uninstallation or N to cancel: 
+REM set /p varContinuePrompt2=Press ENTER to commence uninstallation or N to cancel: 
 echo.
 if /i %varContinuePrompt2% neq N (goto KillService)
 echo - KillRMM procedure aborted. Exiting...
@@ -136,7 +136,7 @@ echo If you plan to reinstall the Agent immediately, keep the key on
 echo the device. In all cases, be aware that reinstalling may cause a
 echo key mismatch that will need to be acknowledged in the web portal.
 set varContinuePrompt2=y
-set /p varContinuePrompt2=Press ENTER to remove the Key or N to leave it: 
+REM set /p varContinuePrompt2=Press ENTER to remove the Key or N to leave it: 
 echo.
 if /i %varContinuePrompt2% equ N (
 	for /f "usebackq" %%m in (`dir /B /AD "%varConfig%"`) do if %%m neq AEMAgent (rmdir /s /q %varConfig%\%%m)
@@ -158,7 +158,7 @@ REM User config files
 echo = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 echo Remove configuration data (saved RDP passwords, window positions)?
 set varContinuePrompt3=y
-set /p varContinuePrompt3=Press ENTER to confirm or N to decline: 
+REM set /p varContinuePrompt3=Press ENTER to confirm or N to decline: 
 echo = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 if /i %varContinuePrompt3% equ N (goto Registry)
 
@@ -178,7 +178,7 @@ REM Splashtop is over (if you want it)
 if not defined varStreamerUID (goto Finished)
 echo Splashtop Streamer detected. Remove it? ^(~3 Min.^)
 set varContinuePrompt4=y
-set /p varContinuePrompt4=Press ENTER to proceed or N to skip: 
+REM set /p varContinuePrompt4=Press ENTER to proceed or N to skip: 
 if /i %varContinuePrompt4% equ N (goto Finished)
 
 start "" /wait msiexec /x%varStreamerUID%
