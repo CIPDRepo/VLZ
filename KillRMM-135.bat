@@ -175,7 +175,7 @@ reg delete "%varRegPath%\Microsoft\Windows\CurrentVersion\Run" /v "Panda Cloud S
 echo - Agent Registry keys removed
 
 REM Splashtop is over (if you want it)
-if not defined varStreamerUID (goto Finished)
+REM if not defined varStreamerUID (goto Finished)
 echo Splashtop Streamer detected. Remove it? ^(~3 Min.^)
 set varContinuePrompt4=y
 REM set /p varContinuePrompt4=Press ENTER to proceed or N to skip: 
@@ -189,4 +189,5 @@ goto Finished
 echo.
 echo - Total uninstallation routine completed.
 echo.
+
 exit
