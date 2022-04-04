@@ -38,5 +38,8 @@ function Disable-InternetExplorerESC {
     Set-ItemProperty -Path $UserKey -Name "IsInstalled" -Value 1
     Stop-Process -Name Explorer
 }
-
+# Disable ESC
 Disable-InternetExplorerESC
+
+# Set GMT as the Timezone
+Set-TimeZone -Id "GMT Standard Time"
