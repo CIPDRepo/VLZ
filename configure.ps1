@@ -6,7 +6,7 @@ Param (
     [Parameter(Mandatory=$true)]
         [string]$RegistrationToken,
         [string]$ProfilePath, 
-        [bool]$aadjoin          
+        [string]$aadjoin          
 )
 
 #    WVD Variables   #
@@ -15,6 +15,8 @@ $WVDBootURI              = 'https://query.prod.cms.rt.microsoft.com/cms/api/am/b
 $WVDAgentURI             = 'https://query.prod.cms.rt.microsoft.com/cms/api/am/binary/RWrmXv'
 $WVDAgentInstaller       = 'WVD-Agent.msi'
 $WVDBootInstaller        = 'WVD-Bootloader.msi'
+
+$aadjoin = [System.Convert]::ToBoolean($aadjoin)
 
 #create directory
 if((Test-Path c:\temp) -eq $false) {
