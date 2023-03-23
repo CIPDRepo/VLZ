@@ -1,6 +1,9 @@
 # Setup ICMPv4 Access
 New-NetFirewallRule -Name 'AllowICMPv4' -DisplayName 'AllowICMPv4' -Profile 'Any' -Direction 'Inbound' -Action 'Allow' -Protocol 'ICMPv4' -Program 'Any' -LocalAddress 'Any' -RemoteAddress 'Any'
 
+# Setup WMI for PRTG Access
+New-NetFirewallRule -Name 'AllowWMIforPRTG' -DisplayName 'AllowWMIforPRTG' -Profile 'Any' -Direction 'Inbound' -Action 'Allow' -Protocol 'TCP' -LocalPort 135,1024-5000,49152-65535 -Program 'Any' -LocalAddress 'Any' -RemoteAddress '10.100.8.6'
+
 # Install the Freshservice Agent for Reboot
 $drive = 'C:\Packages'
 $appName = 'fs-windows-agent-2.9.0'
