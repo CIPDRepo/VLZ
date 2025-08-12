@@ -1,7 +1,5 @@
-# Enforce TLS 1.2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# Optional: trust-all certs for environments with broken trust (not recommended for prod)
 Add-Type @"
 using System.Net;
 using System.Security.Cryptography.X509Certificates;
@@ -14,23 +12,21 @@ public class TrustAllCertsPolicy : ICertificatePolicy {
 $ErrorActionPreference = 'Stop'
 $global:HadErrors = $false
 
-# Paths
 $logDir = "C:\Temp"
 $transcriptLog = Join-Path $logDir "setup_log.txt"
 $stepsLog = Join-Path $logDir "setup_log_steps.txt"
 $packagesRoot = "C:\Packages"
 
-# Ensure directories
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 New-Item -ItemType Directory -Path $packagesRoot -Force | Out-Null
 
-# Logging
 function LogStep {
     param([string]$Message)
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     "$timestamp`t$Message" | Out-File -FilePath $stepsLog -Append -Encoding UTF8
     Write-Host $Message
 }
+
 function Try-Step {
     param([scriptblock]$Action, [string]$OnSuccess, [string]$OnError)
     try {
@@ -39,36 +35,29 @@ function Try-Step {
     }
     catch {
         $global:HadErrors = $true
-        LogStep "$OnError: $($_.Exception.Message)"
+        LogStep "$($OnError): $($_.Exception.Message)"
     }
 }
 
 Start-Transcript -Path $transcriptLog -Append
 
-# Firewall: ICMPv4
 Try-Step -Action {
     if (-not (Get-NetFirewallRule -Name 'AllowICMPv4' -ErrorAction SilentlyContinue)) {
         New-NetFirewallRule -Name 'AllowICMPv4' -DisplayName 'AllowICMPv4' -Profile 'Any' -Direction 'Inbound' -Action 'Allow' -Protocol 'ICMPv4' -Program 'Any' -LocalAddress 'Any' -RemoteAddress 'Any' | Out-Null
     }
 } -OnSuccess "ICMPv4 rule ensured." -OnError "Failed to ensure ICMPv4 firewall rule"
 
-# Firewall: WMI for specific remote (adjust as needed)
 Try-Step -Action {
     if (-not (Get-NetFirewallRule -Name 'AllowWMIforPRTG' -ErrorAction SilentlyContinue)) {
         New-NetFirewallRule -Name 'AllowWMIforPRTG' -DisplayName 'AllowWMIforPRTG' -Profile 'Any' -Direction 'Inbound' -Action 'Allow' -Protocol 'TCP' -LocalPort 135,1024-5000,49152-65535 -Program 'Any' -LocalAddress 'Any' -RemoteAddress '10.100.8.6' | Out-Null
     }
 } -OnSuccess "WMI rule ensured." -OnError "Failed to ensure WMI firewall rule"
 
-# Helper: download file
 function Get-File {
-    param(
-        [Parameter(Mandatory)] [string]$Uri,
-        [Parameter(Mandatory)] [string]$OutFile
-    )
+    param([Parameter(Mandatory)] [string]$Uri, [Parameter(Mandatory)] [string]$OutFile)
     Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing -ErrorAction Stop
 }
 
-# Install Freshservice Agent (MSI)
 Try-Step -Action {
     $fsDir = Join-Path $packagesRoot "fs-windows-agent-2.9.0"
     New-Item -ItemType Directory -Path $fsDir -Force | Out-Null
@@ -81,7 +70,6 @@ Try-Step -Action {
     if ($proc.ExitCode -ne 0) { throw "MSI exit code: $($proc.ExitCode)" }
 } -OnSuccess "Freshservice Agent installed." -OnError "Failed to install Freshservice Agent"
 
-# Install Datto Agent (EXE)
 Try-Step -Action {
     $dattoDir = Join-Path $packagesRoot "Datto"
     New-Item -ItemType Directory -Path $dattoDir -Force | Out-Null
@@ -94,7 +82,6 @@ Try-Step -Action {
     if ($proc.ExitCode -ne 0) { throw "Datto installer exit code: $($proc.ExitCode)" }
 } -OnSuccess "Datto Agent installed." -OnError "Failed to install Datto Agent"
 
-# Disable/Adjust IE ESC
 Try-Step -Action {
     LogStep "Configuring IE ESC..."
     $adminKey = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A7-37EF-4b3f-8CFC-4F3A74704073}"
@@ -104,7 +91,6 @@ Try-Step -Action {
     Stop-Process -Name Explorer -Force -ErrorAction SilentlyContinue
 } -OnSuccess "IE ESC configured." -OnError "Failed to configure IE ESC"
 
-# Timezone
 Try-Step -Action {
     LogStep "Setting Timezone to GMT Standard Time..."
     Set-TimeZone -Id "GMT Standard Time"
@@ -112,8 +98,4 @@ Try-Step -Action {
 
 Stop-Transcript
 
-if ($global:HadErrors) {
-    exit 1
-} else {
-    exit 0
-}
+if ($global:HadErrors) { exit 1 } else { exit 0 }
