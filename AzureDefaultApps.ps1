@@ -1,137 +1,119 @@
 # Enforce TLS 1.2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# Bypass certificate validation (temporary fix for GitHub SSL in ISE or missing certs)
+# Optional: trust-all certs for environments with broken trust (not recommended for prod)
 Add-Type @"
 using System.Net;
 using System.Security.Cryptography.X509Certificates;
 public class TrustAllCertsPolicy : ICertificatePolicy {
-    public bool CheckValidationResult(
-        ServicePoint srvPoint, X509Certificate certificate,
-        WebRequest request, int certificateProblem) {
-        return true;
-    }
+    public bool CheckValidationResult(ServicePoint a, X509Certificate b, WebRequest c, int d) { return true; }
 }
 "@
 [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
 
-# Set paths
-$logDir = "C:\Temp"
-$transcriptLog = "$logDir\setup_log.txt"
-$stepsLog = "$logDir\setup_log_steps.txt"
+$ErrorActionPreference = 'Stop'
+$global:HadErrors = $false
 
-# Ensure log directory exists
-if (-not (Test-Path $logDir)) {
-    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+# Paths
+$logDir = "C:\Temp"
+$transcriptLog = Join-Path $logDir "setup_log.txt"
+$stepsLog = Join-Path $logDir "setup_log_steps.txt"
+$packagesRoot = "C:\Packages"
+
+# Ensure directories
+New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+New-Item -ItemType Directory -Path $packagesRoot -Force | Out-Null
+
+# Logging
+function LogStep {
+    param([string]$Message)
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    "$timestamp`t$Message" | Out-File -FilePath $stepsLog -Append -Encoding UTF8
+    Write-Host $Message
+}
+function Try-Step {
+    param([scriptblock]$Action, [string]$OnSuccess, [string]$OnError)
+    try {
+        & $Action
+        if ($OnSuccess) { LogStep $OnSuccess }
+    }
+    catch {
+        $global:HadErrors = $true
+        LogStep "$OnError: $($_.Exception.Message)"
+    }
 }
 
-# Start transcript for full output
 Start-Transcript -Path $transcriptLog -Append
 
-# Use a separate log for step logs (to avoid conflicts with transcript)
-function LogStep {
-    param ([string]$message)
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    "$timestamp`t$message" | Out-File -FilePath $stepsLog -Append -Encoding UTF8
-    Write-Host $message
-}
-
-# Bypass elevation if running in ISE
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole("Administrator")) {
-    if ($psISE) {
-        LogStep "Running in ISE – skipping elevation check."
-    } else {
-        LogStep "Script not running as administrator. Relaunching elevated..."
-        if ($PSCommandPath) {
-            Start-Process powershell.exe "-ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
-        } else {
-            LogStep "Cannot re-launch script – PSCommandPath is null."
-        }
-        Stop-Transcript
-        exit
+# Firewall: ICMPv4
+Try-Step -Action {
+    if (-not (Get-NetFirewallRule -Name 'AllowICMPv4' -ErrorAction SilentlyContinue)) {
+        New-NetFirewallRule -Name 'AllowICMPv4' -DisplayName 'AllowICMPv4' -Profile 'Any' -Direction 'Inbound' -Action 'Allow' -Protocol 'ICMPv4' -Program 'Any' -LocalAddress 'Any' -RemoteAddress 'Any' | Out-Null
     }
+} -OnSuccess "ICMPv4 rule ensured." -OnError "Failed to ensure ICMPv4 firewall rule"
+
+# Firewall: WMI for specific remote (adjust as needed)
+Try-Step -Action {
+    if (-not (Get-NetFirewallRule -Name 'AllowWMIforPRTG' -ErrorAction SilentlyContinue)) {
+        New-NetFirewallRule -Name 'AllowWMIforPRTG' -DisplayName 'AllowWMIforPRTG' -Profile 'Any' -Direction 'Inbound' -Action 'Allow' -Protocol 'TCP' -LocalPort 135,1024-5000,49152-65535 -Program 'Any' -LocalAddress 'Any' -RemoteAddress '10.100.8.6' | Out-Null
+    }
+} -OnSuccess "WMI rule ensured." -OnError "Failed to ensure WMI firewall rule"
+
+# Helper: download file
+function Get-File {
+    param(
+        [Parameter(Mandatory)] [string]$Uri,
+        [Parameter(Mandatory)] [string]$OutFile
+    )
+    Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing -ErrorAction Stop
 }
 
-# Fix TLS errors for Invoke-WebRequest
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-
-# Setup ICMP rule
-LogStep "Checking if ICMPv4 firewall rule exists..."
-if (-not (Get-NetFirewallRule -Name 'AllowICMPv4' -ErrorAction SilentlyContinue)) {
-    New-NetFirewallRule -Name 'AllowICMPv4' -DisplayName 'AllowICMPv4' -Profile 'Any' -Direction 'Inbound' -Action 'Allow' -Protocol 'ICMPv4' -Program 'Any' -LocalAddress 'Any' -RemoteAddress 'Any'
-    LogStep "ICMPv4 rule created."
-} else {
-    LogStep "ICMPv4 rule already exists. Skipped."
-}
-
-# Setup WMI rule
-LogStep "Checking if WMI firewall rule exists..."
-if (-not (Get-NetFirewallRule -Name 'AllowWMIforPRTG' -ErrorAction SilentlyContinue)) {
-    New-NetFirewallRule -Name 'AllowWMIforPRTG' -DisplayName 'AllowWMIforPRTG' -Profile 'Any' -Direction 'Inbound' -Action 'Allow' -Protocol 'TCP' -LocalPort 135,1024-5000,49152-65535 -Program 'Any' -LocalAddress 'Any' -RemoteAddress '10.100.8.6'
-    LogStep "WMI rule created."
-} else {
-    LogStep "WMI rule already exists. Skipped."
-}
-
-# Download and install Freshservice Agent
-$drive = 'C:\Packages'
-$fsApp = 'fs-windows-agent-2.9.0'
-$fsPath = Join-Path $drive $fsApp
-New-Item -ItemType Directory -Path $fsPath -Force | Out-Null
-$fsUrl = 'https://raw.githubusercontent.com/CIPDRepo/VLZ/main/fs-windows-agent-2.9.0.msi'
-$fsMsi = Join-Path $fsPath 'fs-windows-agent-2.9.0.msi'
-
-LogStep "Downloading Freshservice Agent..."
-try {
-    Invoke-WebRequest -Uri $fsUrl -OutFile $fsMsi -ErrorAction Stop
-    LogStep "Download successful: $fsMsi"
+# Install Freshservice Agent (MSI)
+Try-Step -Action {
+    $fsDir = Join-Path $packagesRoot "fs-windows-agent-2.9.0"
+    New-Item -ItemType Directory -Path $fsDir -Force | Out-Null
+    $fsMsi = Join-Path $fsDir "fs-windows-agent-2.9.0.msi"
+    $fsUrl = "https://raw.githubusercontent.com/CIPDRepo/VLZ/main/fs-windows-agent-2.9.0.msi"
+    LogStep "Downloading Freshservice Agent..."
+    Get-File -Uri $fsUrl -OutFile $fsMsi
     LogStep "Installing Freshservice Agent..."
-    Start-Process msiexec.exe -ArgumentList "/i `"$fsMsi`" /quiet /norestart" -Wait
-    LogStep "Freshservice Agent installed."
-} catch {
-    LogStep "Failed to download or install Freshservice Agent: $_"
-}
+    $proc = Start-Process msiexec.exe -ArgumentList "/i `"$fsMsi`" /quiet /norestart" -PassThru -Wait
+    if ($proc.ExitCode -ne 0) { throw "MSI exit code: $($proc.ExitCode)" }
+} -OnSuccess "Freshservice Agent installed." -OnError "Failed to install Freshservice Agent"
 
-# Download and install Datto Agent
-$dattoApp = 'Datto'
-$dattoPath = Join-Path $drive $dattoApp
-New-Item -ItemType Directory -Path $dattoPath -Force | Out-Null
-$dattoUrl = 'https://raw.githubusercontent.com/CIPDRepo/VLZ/main/DattoAgent.exe'
-$dattoExe = Join-Path $dattoPath 'DattoAgent.exe'
-
-LogStep "Downloading Datto Agent..."
-try {
-    Invoke-WebRequest -Uri $dattoUrl -OutFile $dattoExe -ErrorAction Stop
-    LogStep "Download successful: $dattoExe"
+# Install Datto Agent (EXE)
+Try-Step -Action {
+    $dattoDir = Join-Path $packagesRoot "Datto"
+    New-Item -ItemType Directory -Path $dattoDir -Force | Out-Null
+    $dattoExe = Join-Path $dattoDir "DattoAgent.exe"
+    $dattoUrl = "https://raw.githubusercontent.com/CIPDRepo/VLZ/main/DattoAgent.exe"
+    LogStep "Downloading Datto Agent..."
+    Get-File -Uri $dattoUrl -OutFile $dattoExe
     LogStep "Installing Datto Agent..."
-    Start-Process $dattoExe -ArgumentList "/install /VERYSILENT" -Wait
-    LogStep "Datto Agent installed."
-} catch {
-    LogStep "Failed to download or install Datto Agent: $_"
-}
+    $proc = Start-Process $dattoExe -ArgumentList "/install /VERYSILENT" -PassThru -Wait
+    if ($proc.ExitCode -ne 0) { throw "Datto installer exit code: $($proc.ExitCode)" }
+} -OnSuccess "Datto Agent installed." -OnError "Failed to install Datto Agent"
 
-# Disable IE Enhanced Security
-function Disable-InternetExplorerESC {
-    LogStep "Disabling IE ESC..."
+# Disable/Adjust IE ESC
+Try-Step -Action {
+    LogStep "Configuring IE ESC..."
     $adminKey = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A7-37EF-4b3f-8CFC-4F3A74704073}"
     $userKey  = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A8-37EF-4b3f-8CFC-4F3A74704073}"
-    if (Test-Path $adminKey) {
-        Set-ItemProperty -Path $adminKey -Name "IsInstalled" -Value 0
-        LogStep "Admin ESC disabled."
-    }
-    if (Test-Path $userKey) {
-        Set-ItemProperty -Path $userKey -Name "IsInstalled" -Value 1
-        LogStep "User ESC enabled."
-    }
+    if (Test-Path $adminKey) { Set-ItemProperty -Path $adminKey -Name "IsInstalled" -Value 0 -Force }
+    if (Test-Path $userKey)  { Set-ItemProperty -Path $userKey  -Name "IsInstalled" -Value 1 -Force }
     Stop-Process -Name Explorer -Force -ErrorAction SilentlyContinue
-    LogStep "Explorer restarted."
-}
-Disable-InternetExplorerESC
+} -OnSuccess "IE ESC configured." -OnError "Failed to configure IE ESC"
 
-# Set Timezone
-LogStep "Setting Timezone to GMT Standard Time..."
-Set-TimeZone -Id "GMT Standard Time"
-LogStep "Timezone set."
+# Timezone
+Try-Step -Action {
+    LogStep "Setting Timezone to GMT Standard Time..."
+    Set-TimeZone -Id "GMT Standard Time"
+} -OnSuccess "Timezone set to GMT Standard Time." -OnError "Failed to set timezone"
 
-# End transcript
 Stop-Transcript
+
+if ($global:HadErrors) {
+    exit 1
+} else {
+    exit 0
+}
